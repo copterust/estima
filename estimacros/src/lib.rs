@@ -46,9 +46,9 @@ pub fn repr_unionize(input: TokenStream) -> TokenStream {
 
         #[repr(C)]
         #[derive(Copy, Clone)]
-        union #name {
+        union #name<const N: usize = #array_length> {
             fields: #struct_name,
-            values: [f32; #array_length],
+            values: [f32; N],
         }
 
         impl std::ops::Index<usize> for #name {
