@@ -1,83 +1,40 @@
-use proc_macro::TokenStream;
-use quote::quote;
-use syn::{parse_macro_input, Data, DeriveInput, Fields};
-
-#[proc_macro]
-pub fn repr_unionize(input: TokenStream) -> TokenStream {
-    let input = parse_macro_input!(input as DeriveInput);
-    let name = &input.ident;
-    let struct_name = syn::Ident::new(&format!("{}Fields", name), name.span());
-
-    let mut array_length = 0;
-    let mut field_names = Vec::new();
-    let mut field_types = Vec::new();
-
-    if let Data::Struct(data) = &input.data {
-        if let Fields::Named(fields_named) = &data.fields {
-            array_length = fields_named.named.len();
-            for field in &fields_named.named {
-                if let Some(ident) = &field.ident {
-                    field_names.push(ident.clone());
-                    field_types.push(&field.ty);
-                }
-            }
-        } else {
-            panic!("Expected named fields");
+#[macro_export]
+macro_rules! vector_union {
+    (
+        $name:ident, $type:ty, $fields_name:ident {
+            $($field:ident $( : $nested_type:ident )?),*
         }
-    } else {
-        panic!("repr_unionize can only be used for structs with named fields");
-    }
-
-    let struct_fields = field_names
-        .iter()
-        .zip(field_types.iter())
-        .map(|(name, ty)| {
-            quote! {
-                #name: #ty
-            }
-        });
-
-    let expanded: proc_macro2::TokenStream = quote! {
+    ) => {
         #[repr(C)]
         #[derive(Copy, Clone)]
-        struct #struct_name {
-            #(#struct_fields),*
+        pub union $name {
+            pub values: [$type; vector_union!(@count $type, $($field $( : $nested_type)?),*)],
+            pub fields: $fields_name,
+        }
+
+        impl $name {
+            const SIZE: usize = vector_union!(@count $type, $($field $( : $nested_type)?),*);
         }
 
         #[repr(C)]
         #[derive(Copy, Clone)]
-        union #name<const N: usize = #array_length> {
-            fields: #struct_name,
-            values: [f32; N],
-        }
-
-        impl std::ops::Index<usize> for #name {
-            type Output = f32;
-            fn index(&self, idx: usize) -> &Self::Output {
-                let values = unsafe { &self.values };
-                &values[idx]
-            }
-        }
-
-        impl std::ops::IndexMut<usize> for #name {
-            fn index_mut(&mut self, idx: usize) -> &mut Self::Output {
-                unsafe { &mut self.values[idx] }
-            }
-        }
-
-        impl std::ops::Deref for #name {
-            type Target = #struct_name;
-            fn deref(&self) -> &Self::Target {
-                unsafe { &self.fields }
-            }
-        }
-
-        impl std::ops::DerefMut for #name {
-            fn deref_mut(&mut self) -> &mut Self::Target {
-                unsafe { &mut self.fields }
-            }
+        pub struct $fields_name {
+            $(pub $field: vector_union!(@field_type $type, $($nested_type)?),)*
         }
     };
 
-    TokenStream::from(expanded)
+    (@count $type:ty, $($field:ident $( : $nested_type:ident )?),*) => {
+        0 $(+ vector_union!(@field_size $type, $($nested_type)?))*
+    };
+
+    (@field_size $type:ty, $nested_type:ident) => {
+        { $nested_type::SIZE }
+    };
+
+    (@field_size $type:ty,) => {
+        1
+    };
+
+    (@field_type $type:ty, $nested_type:ident) => { $nested_type };
+    (@field_type $type:ty,) => { $type };
 }

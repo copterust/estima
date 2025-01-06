@@ -9,8 +9,8 @@ estima = { path = "../estima" }
 estimacros = { path = "../estimacros" }
 
 [[example]]
-name = "repr_unionize"
-path = "repr_unionize.rs"
+name = "vector_union"
+path = "vector_union.rs"
 
 [[example]]
 name = "cvm"
