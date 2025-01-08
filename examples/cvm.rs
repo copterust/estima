@@ -1,19 +1,19 @@
 //! CVM (constant velocity model) example using estima-rs
 use estima::{MeasurementModel, ProcessModel, State, UKFBuilder};
+use estimacros::vector_union;
 
-/// State vector, [position_x, position_y, velocity_x, velocity_y]
-#[derive(Debug, Copy, Clone)]
-struct ConstantVelocityState {
-    data: [f32; 4],
-}
+vector_union! { Position, f32, PositionFields { x, y }}
+vector_union! { Velocity, f32, VelocityFields { x, y }}
+vector_union! { ConstantVelocityState, f32, StateFields { position: Position, v: Velocity }}
 
 impl ConstantVelocityState {
-    fn new(position: [f32; 2], velocity: [f32; 2]) -> Self {
-        let mut data = [0.0; 4];
-        data[0..2].copy_from_slice(&position);
-        data[2..4].copy_from_slice(&velocity);
-
-        Self { data }
+    fn new(position: Position, velocity: Velocity) -> Self {
+        Self {
+            fields: StateFields {
+                position,
+                v: velocity,
+            },
+        }
     }
 }
 
@@ -21,11 +21,11 @@ impl State<4> for ConstantVelocityState {
     type Scalar = f32;
 
     fn as_array(&self) -> &[Self::Scalar; 4] {
-        &self.data
+        unsafe { &self.values }
     }
 
     fn from_array(data: &[Self::Scalar; 4]) -> Self {
-        Self { data: *data }
+        Self { values: *data }
     }
 }
 
@@ -38,38 +38,52 @@ impl ProcessModel<ConstantVelocityState, 4> for ConstantVelocityDynamics {
         dt: f32,
         _control: Option<&[f32]>,
     ) -> ConstantVelocityState {
-        let new_position = [
-            state.data[0] + state.data[2] * dt,
-            state.data[1] + state.data[3] * dt,
-        ];
-        let mut data = [0.0; 4];
-        data[0..2].copy_from_slice(&new_position);
-        data[2..4].copy_from_slice(&state.data[2..4]); // Velocity is constant
+        let new_position = Position {
+            fields: PositionFields {
+                x: state.position.x + state.v.x * dt,
+                y: state.position.y + state.v.y * dt,
+            },
+        };
 
-        ConstantVelocityState { data }
+        ConstantVelocityState {
+            fields: StateFields {
+                position: new_position,
+                v: state.v, // Velocity is constant
+            },
+        }
     }
 }
 
 struct PositionMeasurement;
 
-impl MeasurementModel<ConstantVelocityState, [f32; 2], 4> for PositionMeasurement {
-    fn measure(&self, state: &ConstantVelocityState) -> [f32; 2] {
-        [state.data[0], state.data[1]]
+impl MeasurementModel<ConstantVelocityState, Position, 4> for PositionMeasurement {
+    fn measure(&self, state: &ConstantVelocityState) -> Position {
+        state.position
     }
 
-    fn residual(&self, predicted: &[f32; 2], measurement: &[f32; 2]) -> [f32; 2] {
-        [measurement[0] - predicted[0], measurement[1] - predicted[1]]
+    fn residual(&self, predicted: &Position, measurement: &Position) -> Position {
+        Position {
+            fields: PositionFields {
+                x: measurement.x - predicted.x,
+                y: measurement.y - predicted.y,
+            },
+        }
     }
 }
 
 static MEASUREMENTS: [[f32; 2]; 5] = [[1.0, 2.0], [1.1, 2.1], [1.4, 2.5], [1.8, 3.0], [2.0, 3.4]];
 
-fn log_state(step: usize, state: &ConstantVelocityState) {
-    println!("Step {}, state: {:?}", step, state);
+fn log_state(step: usize, state: ConstantVelocityState) {
+    println!(
+        "Step {}, x: {}, y: {}, v_x: {}, v_y: {}",
+        step, state.position.x, state.position.y, state.v.x, state.v.y
+    );
 }
 
 fn main() {
-    let initial_state = ConstantVelocityState::new([0.0, 0.0], [1.0, 1.0]);
+    let initial_position_guess = Position { values: [0.0, 0.0] };
+    let initial_velocity_guess = Velocity { values: [1.0, 2.0] };
+    let initial_state = ConstantVelocityState::new(initial_position_guess, initial_velocity_guess);
 
     let mut ukf = UKFBuilder::new()
         .with_state(initial_state)
@@ -79,8 +93,11 @@ fn main() {
 
     for (step, &measurement) in MEASUREMENTS.iter().enumerate() {
         ukf.predict(1.0);
-        ukf.update(&measurement);
+        let measured_position = Position {
+            values: measurement,
+        };
+        ukf.update(&measured_position);
         let state = ukf.state();
-        log_state(step, state);
+        log_state(step, *state);
     }
 }
