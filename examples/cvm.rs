@@ -2,9 +2,9 @@
 use estima::{MeasurementModel, ProcessModel, State, UKFBuilder};
 use estimacros::vector_union;
 
-vector_union! { Position, f32, PositionFields { x, y }}
-vector_union! { Velocity, f32, VelocityFields { x, y }}
-vector_union! { ConstantVelocityState, f32, StateFields { position: Position, v: Velocity }}
+vector_union! { Position, f32, PositionFields { x, y } }
+vector_union! { Velocity, f32, VelocityFields { x, y } }
+vector_union! { ConstantVelocityState, f32, StateFields { position: Position, v: Velocity } }
 
 impl ConstantVelocityState {
     fn new(position: Position, velocity: Velocity) -> Self {
@@ -73,7 +73,7 @@ impl MeasurementModel<ConstantVelocityState, Position, 4> for PositionMeasuremen
 
 static MEASUREMENTS: [[f32; 2]; 5] = [[1.0, 2.0], [1.1, 2.1], [1.4, 2.5], [1.8, 3.0], [2.0, 3.4]];
 
-fn log_state(step: usize, state: ConstantVelocityState) {
+fn log_state(step: usize, state: &ConstantVelocityState) {
     println!(
         "Step {}, x: {}, y: {}, v_x: {}, v_y: {}",
         step, state.position.x, state.position.y, state.v.x, state.v.y
@@ -98,6 +98,6 @@ fn main() {
         };
         ukf.update(&measured_position);
         let state = ukf.state();
-        log_state(step, *state);
+        log_state(step, state);
     }
 }
