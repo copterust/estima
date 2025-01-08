@@ -21,8 +21,9 @@ fn main() {
         },
     };
 
-    unsafe {
-        println!("{:?}", state.fields.d.fields.z);
-        println!("{:?}", state.values[7]);
-    }
+    println!("state.d.z: {}, state[7]: {}", state.d.z, state[7]);
+    state.d.z = -1.0;
+    println!("state.d.z: {}, state[7]: {}", state.d.z, state[7]);
+    state[7] = -2.0;
+    println!("state.d.z: {}, state[7]: {}", state.d.z, state[7]);
 }

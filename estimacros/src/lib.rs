@@ -21,6 +21,33 @@ macro_rules! vector_union {
         pub struct $fields_name {
             $(pub $field: vector_union!(@field_type $type, $($nested_type)?),)*
         }
+
+        impl std::ops::Index<usize> for $name {
+            type Output = f32;
+            fn index(&self, idx: usize) -> &Self::Output {
+                let values = unsafe { &self.values };
+                &values[idx]
+            }
+        }
+
+        impl std::ops::IndexMut<usize> for $name {
+            fn index_mut(&mut self, idx: usize) -> &mut Self::Output {
+                unsafe { &mut self.values[idx] }
+            }
+        }
+
+        impl std::ops::Deref for $name {
+            type Target = $fields_name;
+            fn deref(&self) -> &Self::Target {
+                unsafe { &self.fields }
+            }
+        }
+
+        impl std::ops::DerefMut for $name {
+            fn deref_mut(&mut self) -> &mut Self::Target {
+                unsafe { &mut self.fields }
+            }
+        }
     };
 
     (@count $type:ty, $($field:ident $( : $nested_type:ident )?),*) => {
