@@ -1,4 +1,6 @@
-//! Definitions for UKF
+//! Estimation algoritms in Rust
+
+pub mod sigma_points;
 
 /// Trait defining a state
 pub trait State<const DIM: usize> {
