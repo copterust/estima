@@ -418,20 +418,20 @@ mod merwe_scaled_extra {
         let mean = OVector::<f64, N>::new(2.0, -1.0);
         let sqrt_cov = OMatrix::<f64, N, N>::identity() * 0.5;
 
-        let A = Matrix2::new(1.0, 2.0, -0.5, 0.3);
+        let a = Matrix2::new(1.0, 2.0, -0.5, 0.3);
         let b = OVector::<f64, N>::new(0.2, -0.1);
 
         let (pts, w_m, w_c) = ut.generate(&mean, &sqrt_cov);
 
         let mut pts2 = pts.clone();
         for i in 0..pts2.ncols() {
-            let y = &A * pts2.column(i) + &b;
+            let y = &a * pts2.column(i) + &b;
             pts2.set_column(i, &y);
         }
 
         let (mean2, sqrt_cov2) = unscented_transform::<N, _, f64>(&pts2, &w_m, &w_c);
-        let mean_expected = &A * mean + &b;
-        let cov_expected = A * (&sqrt_cov * &sqrt_cov.transpose()) * A.transpose();
+        let mean_expected = &a * mean + &b;
+        let cov_expected = a * (&sqrt_cov * &sqrt_cov.transpose()) * a.transpose();
 
         for i in 0..2 {
             assert!(abs_diff_eq!(mean2[i], mean_expected[i], epsilon = EPS));

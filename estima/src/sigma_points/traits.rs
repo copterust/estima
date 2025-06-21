@@ -36,9 +36,7 @@ where
 /// In‐place sigma‐point generator trait
 pub trait SigmaPointsInPlace<N, T>
 where
-    N: DimName + DimMul<U2>,
-    <N as DimMul<U2>>::Output: DimAdd<U1>,
-    UTSigmaCount<N>: DimName,
+    N: DimName,
     T: RealField + Copy,
     DefaultAllocator: Allocator<N>
         + Allocator<N, N>
