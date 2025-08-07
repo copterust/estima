@@ -4,7 +4,7 @@ use nalgebra::{
         allocator::Allocator,
         dimension::{DimAdd, DimMul, U1, U2},
     },
-    DefaultAllocator, DimName, OMatrix, OVector, RealField,
+    Cholesky, DefaultAllocator, DimName, OMatrix, OVector, RealField,
 };
 
 /// Unscented transform parameters as described in \[1\] generic over scalar S.
@@ -38,7 +38,7 @@ where
     fn generate(
         &self,
         mean: &OVector<S, L>,
-        sqrt_cov: &OMatrix<S, L, L>,
+        sqrt_cov: &Cholesky<S, L>,
     ) -> (
         OMatrix<S, L, Self::SigmaCount>, // sigma points
         OVector<S, Self::SigmaCount>,    // mean weights
@@ -46,22 +46,38 @@ where
     ) {
         let n = S::from_usize(L::dim()).unwrap();
         let lambda = self.alpha * self.alpha * (n + self.kappa) - n;
-        let scale = (n + lambda).sqrt();
 
-        let mut sigma_pts = OMatrix::<S, L, _>::zeros();
-        let mut w_mean = OVector::<S, _>::zeros();
-        let mut w_covar = OVector::<S, _>::zeros();
+        let mut sigma_pts = OMatrix::<S, L, Self::SigmaCount>::zeros();
+        let mut w_mean = OVector::<S, Self::SigmaCount>::zeros();
+        let mut w_covar = OVector::<S, Self::SigmaCount>::zeros();
 
-        let wm0 = lambda / (n + lambda);
-        let wc0 = wm0 + (S::one() - self.alpha * self.alpha + self.beta);
+        let n_lambda = n + lambda;
+
+        let (wm0, wc0, inv_two_n, scale) = if n_lambda.abs() < S::default_epsilon() {
+            // Handle degenerate case
+            let inv_2n = S::one() / (S::from_usize(2).unwrap() * n);
+            (
+                lambda / n_lambda,
+                lambda / n_lambda + (S::one() - self.alpha * self.alpha + self.beta),
+                inv_2n,
+                (n + self.kappa).sqrt(),
+            )
+        } else {
+            (
+                lambda / n_lambda,
+                lambda / n_lambda + (S::one() - self.alpha * self.alpha + self.beta),
+                S::one() / (S::from_usize(2).unwrap() * n_lambda),
+                n_lambda.sqrt(),
+            )
+        };
+
         w_mean[0] = wm0;
         w_covar[0] = wc0;
 
-        let scaled_sqrt = sqrt_cov * scale;
+        let scaled_sqrt = sqrt_cov.l() * scale;
 
         sigma_pts.set_column(0, mean);
 
-        let inv_two_n = S::one() / (S::from_usize(2).unwrap() * (n + lambda));
         for i in 0..L::dim() {
             w_mean[i + 1] = inv_two_n;
             w_covar[i + 1] = inv_two_n;
@@ -96,25 +112,49 @@ where
     fn generate_into(
         &self,
         mean: &OVector<S, L>,
-        sqrt_cov: &OMatrix<S, L, L>,
+        sqrt_cov: &Cholesky<S, L>,
         sigma_pts: &mut OMatrix<S, L, Self::SigmaCount>,
         w_mean: &mut OVector<S, Self::SigmaCount>,
         w_covar: &mut OVector<S, Self::SigmaCount>,
     ) {
         let n = S::from_usize(L::dim()).unwrap();
         let lambda = self.alpha * self.alpha * (n + self.kappa) - n;
-        let scale = (n + lambda).sqrt();
 
-        let wm0 = lambda / (n + lambda);
-        let wc0 = wm0 + (S::one() - self.alpha * self.alpha + self.beta);
+        let n_lambda = n + lambda;
+
+        let (wm0, wc0, inv, scale) = if n_lambda.abs() < S::default_epsilon() {
+            // Handle degenerate case where n_lambda is near zero
+            // In such cases, we need to ensure weights sum to 1.0
+            let point_count = S::from_usize(L::dim() * 2 + 1).unwrap();
+            let remaining_count = S::from_usize(L::dim() * 2).unwrap();
+
+            // Set the center point weight to ensure sum = 1
+            let wm0 = S::one() / point_count;
+
+            // Set all other weights equal
+            let inv_2n = S::one() / remaining_count;
+            (
+                wm0,
+                wm0 + (S::one() - self.alpha * self.alpha + self.beta),
+                inv_2n,
+                S::default_epsilon().sqrt(),
+            )
+        } else {
+            (
+                lambda / n_lambda,
+                lambda / n_lambda + (S::one() - self.alpha * self.alpha + self.beta),
+                S::one() / (S::from_usize(2).unwrap() * n_lambda),
+                n_lambda.sqrt(),
+            )
+        };
+
         w_mean[0] = wm0;
         w_covar[0] = wc0;
 
-        let scaled_sqrt = sqrt_cov * scale;
+        let scaled_sqrt = sqrt_cov.l() * scale;
 
         sigma_pts.set_column(0, mean);
 
-        let inv = S::one() / (S::from_usize(2).unwrap() * (n + lambda));
         for i in 0..L::dim() {
             w_mean[i + 1] = inv;
             w_covar[i + 1] = inv;

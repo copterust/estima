@@ -2,17 +2,15 @@ use nalgebra::base::{
     allocator::Allocator,
     dimension::{DimAdd, DimMul, U1, U2},
 };
-use nalgebra::{DefaultAllocator, DimName, OMatrix, OVector, RealField};
+use nalgebra::{Cholesky, DefaultAllocator, DimName, OMatrix, OVector, RealField};
 
 /// The compile‐time number of sigma points (2 × N + 1) for the standard UT.
 pub type UTSigmaCount<N> = <<N as DimMul<U2>>::Output as DimAdd<U1>>::Output;
 
 /// Trait for sigma point generators
-pub trait SigmaPoints<N, T>
+pub trait SigmaPoints<N: DimName, T: RealField>
 where
-    N: DimName,
     T: RealField,
-    Self::SigmaCount: DimName,
     DefaultAllocator: Allocator<N>
         + Allocator<N, N>
         + Allocator<<Self as SigmaPoints<N, T>>::SigmaCount>
@@ -25,7 +23,7 @@ where
     fn generate(
         &self,
         mean: &OVector<T, N>,
-        sqrt_cov: &OMatrix<T, N, N>,
+        sqrt_cov: &Cholesky<T, N>,
     ) -> (
         OMatrix<T, N, Self::SigmaCount>, // sigma points
         OVector<T, Self::SigmaCount>,    // mean weights
@@ -34,9 +32,8 @@ where
 }
 
 /// In‐place sigma‐point generator trait
-pub trait SigmaPointsInPlace<N, T>
+pub trait SigmaPointsInPlace<N: DimName, T: RealField + Copy>
 where
-    N: DimName,
     T: RealField + Copy,
     DefaultAllocator: Allocator<N>
         + Allocator<N, N>
@@ -53,7 +50,7 @@ where
     fn generate_into(
         &self,
         mean: &OVector<T, N>,
-        sqrt_cov: &OMatrix<T, N, N>,
+        sqrt_cov: &Cholesky<T, N>,
         sigma_pts: &mut OMatrix<T, N, Self::SigmaCount>,
         w_mean: &mut OVector<T, Self::SigmaCount>,
         w_covar: &mut OVector<T, Self::SigmaCount>,
