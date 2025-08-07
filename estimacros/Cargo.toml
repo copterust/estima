@@ -1,4 +1,11 @@
 [package]
+authors = ["Alexander Zhuravlev"]
+categories = ["embedded", "hardware-support", "no-std"]
+description = "Kalman estimator (macrosupport)"
+documentation = "https://docs.rs/estima"
+keywords = ["estimator", "navigation"]
+license = "MIT"
+repository = "https://github.com/copterust/estima"
 name = "estimacros"
 version = "0.1.0"
 edition = "2021"

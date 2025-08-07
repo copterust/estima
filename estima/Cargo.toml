@@ -1,7 +1,12 @@
-
-
 [package]
+authors = ["Alexander Zhuravlev"]
+categories = ["embedded", "hardware-support", "no-std"]
+description = "Kalman estimator"
+documentation = "https://docs.rs/estima"
+keywords = ["estimator", "navigation"]
+license = "MIT"
 name = "estima"
+repository = "https://github.com/copterust/estima"
 version = "0.1.0"
 edition = "2021"
 
