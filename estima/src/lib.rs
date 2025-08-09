@@ -1,4 +1,8 @@
-//! Definitions for UKF
+//! Estimation algoritms in Rust
+
+pub mod kf;
+pub mod sigma_points;
+pub mod sr_ukf;
 
 /// Trait defining a state
 pub trait State<const DIM: usize> {
@@ -32,6 +36,18 @@ pub struct UKFBuilder<S: State<DIM>, Measurement, Process, MeasurementModel, con
     process: Option<Process>,
     measurement_model: Option<MeasurementModel>,
     _marker: core::marker::PhantomData<Measurement>,
+}
+
+impl<S, Measurement, Process, MM, const DIM: usize> Default
+    for UKFBuilder<S, Measurement, Process, MM, DIM>
+where
+    S: State<DIM>,
+    Process: ProcessModel<S, DIM>,
+    MM: MeasurementModel<S, Measurement, DIM>,
+{
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl<S, Measurement, Process, MM, const DIM: usize> UKFBuilder<S, Measurement, Process, MM, DIM>
