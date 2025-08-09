@@ -7,7 +7,7 @@ keywords = ["estimator", "navigation"]
 license = "MIT"
 name = "estima"
 repository = "https://github.com/copterust/estima"
-version = "0.1.1"
+version = "0.2.0"
 edition = "2021"
 
 [lib]
