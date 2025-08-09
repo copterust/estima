@@ -9,6 +9,7 @@ name = "estima"
 repository = "https://github.com/copterust/estima"
 version = "0.2.0"
 edition = "2021"
+readme = "../README.md"
 
 [lib]
 path = "src/lib.rs"
