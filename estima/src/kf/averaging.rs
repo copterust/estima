@@ -20,8 +20,8 @@ where
     /// * `weights` - Vector of weights for each sigma point
     /// * `output` - Pre-allocated buffer for the result
     ///
-    /// Notes:
-    /// * `weights[i]` corresponds to column `i` of `sigma_points`.
+    /// # Returns
+    /// The weighted mean state vector
     fn weighted_mean<SigmaCount: DimName>(
         &self,
         sigma_points: &OMatrix<T, N, SigmaCount>,
@@ -34,7 +34,7 @@ where
 /// Linear averaging for Euclidean spaces (default).
 ///
 /// This implements the standard linear weighted sum:
-/// mean = sum(w_i * x_i)
+/// mean = Σ(w_i * x_i)
 #[derive(Clone, Debug)]
 pub struct LinearAveraging;
 
@@ -50,9 +50,12 @@ where
     ) where
         DefaultAllocator: Allocator<N, SigmaCount> + Allocator<SigmaCount>,
     {
+        // Zero out the output buffer
         output.fill(T::zero());
 
-        for i in 0..sigma_points.ncols() {
+        // Compute linear weighted sum
+        let n_sigmas = sigma_points.ncols().min(weights.len());
+        for i in 0..n_sigmas {
             let weight = weights[i];
             let sigma_i = sigma_points.column(i);
             output.axpy(weight, &sigma_i, T::one());
@@ -75,6 +78,7 @@ mod tests {
         let averaging = LinearAveraging;
         averaging.weighted_mean(&sigma_points, &weights, &mut output);
 
+        // Actually with these columns:
         // 0.2*[1,2] + 0.3*[3,4] + 0.5*[5,6] = [0.2+0.9+2.5, 0.4+1.2+3.0] = [3.6, 4.6]
         assert!(f64::abs(output[0] - 3.6) < 1e-10);
         assert!(f64::abs(output[1] - 4.6) < 1e-10);

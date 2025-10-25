@@ -22,6 +22,18 @@ pub struct MerweScaled<S: RealField> {
     pub kappa: S,
 }
 
+impl<S: RealField> MerweScaled<S> {
+    /// Create a new MerweScaled sigma point generator.
+    ///
+    /// # Arguments
+    /// * `alpha` - Spread of sigma points (typically 1e-3 to 1)  
+    /// * `beta` - Prior knowledge parameter (2 is optimal for Gaussian)
+    /// * `kappa` - Secondary scaling (typically 0 or 3-n)
+    pub fn new(alpha: S, beta: S, kappa: S) -> Self {
+        Self { alpha, beta, kappa }
+    }
+}
+
 /// Merwe sigma points generator for dimension L and scalar S
 impl<L, S> SigmaPoints<L, S> for MerweScaled<S>
 where

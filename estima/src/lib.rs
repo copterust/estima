@@ -1,6 +1,8 @@
 //! Estimation algoritms in Rust
 
+pub mod filter;
 pub mod kf;
+pub mod manifold;
 pub mod sigma_points;
 pub mod sr_ukf;
 

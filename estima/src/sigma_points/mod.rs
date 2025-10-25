@@ -1,6 +1,6 @@
 //! Sigma‐point generators for UKF
 
-pub use self::merwe_scaled::MerweScaled;
+pub use self::merwe_scaled::{MerweScaled, MerweScaled as MerweScaledSigmaPoints};
 pub use self::traits::{SigmaPoints, SigmaPointsInPlace, UTSigmaCount};
 
 mod merwe_scaled;
