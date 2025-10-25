@@ -1,7 +1,8 @@
-//! Sigma‐point generators for UKF
+//! Sigma‐point generators for the Unscented Kalman Filter.
 
 pub use self::merwe_scaled::{MerweScaled, MerweScaled as MerweScaledSigmaPoints};
 pub use self::traits::{SigmaPoints, SigmaPointsInPlace, UTSigmaCount};
+pub use self::weights::UTWeights;
 
 mod merwe_scaled;
 
@@ -9,6 +10,7 @@ mod merwe_scaled;
 mod tests;
 
 mod traits;
-
 pub mod transform;
+pub mod weights;
+
 pub use transform::unscented_transform;

@@ -199,7 +199,8 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use nalgebra::{Vector2, Vector3, U2, U3};
+    use alloc::vec;
+    use nalgebra::{Vector2, Vector3, U2};
 
     #[test]
     fn test_euclidean_construction() {
@@ -251,12 +252,14 @@ mod tests {
         ];
         let deltas = vec![Vector2::new(0.5, 0.5), Vector2::new(-0.5, -0.5)];
 
-        let retracted = EuclideanManifold::batch_retract(&points, &deltas);
+        let mut retracted = vec![EuclideanManifold::new(Vector2::zeros()); points.len()];
+        EuclideanManifold::batch_retract(&points, &deltas, &mut retracted);
         assert_eq!(retracted[0].as_vector(), &Vector2::new(1.5, 2.5));
         assert_eq!(retracted[1].as_vector(), &Vector2::new(2.5, 3.5));
 
         let base_point = EuclideanManifold::new(Vector2::new(0.0, 0.0));
-        let locals = EuclideanManifold::batch_local_from_base(&base_point, &points);
+        let mut locals = vec![Vector2::zeros(); points.len()];
+        EuclideanManifold::batch_local_from_base(&base_point, &points, &mut locals);
         assert_eq!(locals[0], Vector2::new(1.0, 2.0));
         assert_eq!(locals[1], Vector2::new(3.0, 4.0));
     }
