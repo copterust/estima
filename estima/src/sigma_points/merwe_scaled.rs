@@ -1,4 +1,4 @@
-use super::traits::{SigmaPoints, SigmaPointsInPlace, UTSigmaCount};
+use super::traits::{SigmaPoints, SigmaPointsGenerated, SigmaPointsInPlace, UTSigmaCount};
 use super::weights::UTWeights;
 use nalgebra::{
     base::{
@@ -27,7 +27,7 @@ impl<S: RealField> MerweScaled<S> {
     /// Create a new MerweScaled sigma point generator.
     ///
     /// # Arguments
-    /// * `alpha` - Spread of sigma points (typically 1e-3 to 1)  
+    /// * `alpha` - Spread of sigma points (typically 1e-3 to 1)
     /// * `beta` - Prior knowledge parameter (2 is optimal for Gaussian)
     /// * `kappa` - Secondary scaling (typically 0 or 3-n)
     pub fn new(alpha: S, beta: S, kappa: S) -> Self {
@@ -52,11 +52,7 @@ where
         &self,
         mean: &OVector<S, L>,
         sqrt_cov: &Cholesky<S, L>,
-    ) -> (
-        OMatrix<S, L, Self::SigmaCount>, // sigma points
-        OVector<S, Self::SigmaCount>,    // mean weights
-        OVector<S, Self::SigmaCount>,    // covariance weights
-    ) {
+    ) -> SigmaPointsGenerated<S, L, <Self as SigmaPoints<L, S>>::SigmaCount> {
         let dim = L::dim();
         let n = S::from_usize(dim).unwrap();
         let lambda = self.alpha * self.alpha * (n + self.kappa) - n;
@@ -81,7 +77,11 @@ where
         }
 
         let UTWeights { w_mean, w_covar } = weights;
-        (sigma_pts, w_mean, w_covar)
+        SigmaPointsGenerated {
+            sigma_points: sigma_pts,
+            mean_weights: w_mean,
+            covariance_weights: w_covar,
+        }
     }
 }
 

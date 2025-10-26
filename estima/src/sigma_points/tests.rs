@@ -57,7 +57,10 @@ mod merwe_scaled {
                 // non‐trivial mean: [–1, 1, –1, …]
                 let mean = OVector::<f64, $L>::from_fn(|i, _| if i % 2 == 0 { -1.0 } else { 1.0 });
 
-                let (pts_g, wm_g, wc_g) = ut.generate(&mean, &sqrt_cov);
+                let generated = ut.generate(&mean, &sqrt_cov);
+                let pts_g = generated.sigma_points;
+                let wm_g = generated.mean_weights;
+                let wc_g = generated.covariance_weights;
 
                 let mut pts_i = OMatrix::<f64, $L, _>::zeros();
                 let mut wm_i = OVector::<f64, _>::zeros();
@@ -194,17 +197,20 @@ mod unscented_transform_tests {
         let sqrt_cov = Cholesky::new(sqrt_cov_matrix).expect("Cholesky decomposition failed");
         let mean = OVector::<f64, N>::new(0.5, -1.0, 2.0);
 
-        let (pts, w_m, w_c) = ut.generate(&mean, &sqrt_cov);
-        let (mean_rec, sqrt_cov_rec) = unscented_transform::<N, _, f64>(&pts, &w_m, &w_c);
+        let generated = ut.generate(&mean, &sqrt_cov);
+        let pts_g = generated.sigma_points;
+        let wm_g = generated.mean_weights;
+        let wc_g = generated.covariance_weights;
+        let (mean_rec, sqrt_cov_rec) = unscented_transform::<N, _, f64>(&pts_g, &wm_g, &wc_g);
 
         for i in 0..3 {
             assert!(abs_diff_eq!(mean_rec[i], mean[i], epsilon = 1e-12));
         }
 
         let mut cov_direct = OMatrix::<f64, N, N>::zeros();
-        for i in 0..pts.ncols() {
-            let d = pts.column(i) - mean_rec;
-            cov_direct += w_c[i] * &d * d.transpose();
+        for i in 0..pts_g.ncols() {
+            let d = pts_g.column(i) - mean_rec;
+            cov_direct += wc_g[i] * &d * d.transpose();
         }
         let cov_qr = &sqrt_cov_rec * sqrt_cov_rec.transpose();
         for r in 0..3 {
@@ -231,9 +237,12 @@ mod unscented_transform_tests {
         let sqrt_cov_matrix = OMatrix::<f64, N, N>::identity();
         let sqrt_cov = Cholesky::new(sqrt_cov_matrix).expect("Cholesky decomposition failed");
 
-        let (pts, w_m, w_c) = ut.generate(&mean, &sqrt_cov);
+        let generated = ut.generate(&mean, &sqrt_cov);
+        let pts_g = generated.sigma_points;
+        let wm_g = generated.mean_weights;
+        let wc_g = generated.covariance_weights;
 
-        let (mean_rec, sqrt_cov_rec) = unscented_transform::<N, _, f64>(&pts, &w_m, &w_c);
+        let (mean_rec, sqrt_cov_rec) = unscented_transform::<N, _, f64>(&pts_g, &wm_g, &wc_g);
 
         assert!(abs_diff_eq!(mean_rec[0], mean[0], epsilon = 1e-12));
         assert!(abs_diff_eq!(mean_rec[1], mean[1], epsilon = 1e-12));
@@ -295,11 +304,12 @@ mod merwe_scaled_extra {
         let sqrt_cov_matrix = OMatrix::<f64, N, N>::identity();
         let sqrt_cov = Cholesky::new(sqrt_cov_matrix).expect("Cholesky decomposition failed");
         let mean = OVector::<f64, N>::zeros();
-        let (pts, _wm, _wc) = ut.generate(&mean, &sqrt_cov);
+        let generated = ut.generate(&mean, &sqrt_cov);
+        let pts_g = generated.sigma_points;
 
         // all points collapse to mean
-        for i in 0..pts.ncols() {
-            assert!(abs_diff_eq!(pts[(0, i)], 0.0, epsilon = EPS));
+        for i in 0..pts_g.ncols() {
+            assert!(abs_diff_eq!(pts_g[(0, i)], 0.0, epsilon = EPS));
         }
     }
 
@@ -314,11 +324,12 @@ mod merwe_scaled_extra {
         let sqrt_cov_matrix = OMatrix::<f64, N, N>::identity();
         let sqrt_cov = Cholesky::new(sqrt_cov_matrix).expect("Cholesky decomposition failed");
         let mean = OVector::<f64, N>::zeros();
-        let (pts, _wm, _wc) = ut.generate(&mean, &sqrt_cov);
+        let generated = ut.generate(&mean, &sqrt_cov);
+        let pts_g = generated.sigma_points;
 
         for r in 0..2 {
-            for i in 0..pts.ncols() {
-                assert!(abs_diff_eq!(pts[(r, i)], 0.0, epsilon = EPS));
+            for i in 0..pts_g.ncols() {
+                assert!(abs_diff_eq!(pts_g[(r, i)], 0.0, epsilon = EPS));
             }
         }
     }
@@ -334,11 +345,12 @@ mod merwe_scaled_extra {
         let sqrt_cov_matrix = OMatrix::<f64, N, N>::identity();
         let sqrt_cov = Cholesky::new(sqrt_cov_matrix).expect("Cholesky decomposition failed");
         let mean = OVector::<f64, N>::zeros();
-        let (pts, _wm, _wc) = ut.generate(&mean, &sqrt_cov);
+        let generated = ut.generate(&mean, &sqrt_cov);
+        let pts_g = generated.sigma_points;
 
         for r in 0..3 {
-            for i in 0..pts.ncols() {
-                assert!(abs_diff_eq!(pts[(r, i)], 0.0, epsilon = EPS));
+            for i in 0..pts_g.ncols() {
+                assert!(abs_diff_eq!(pts_g[(r, i)], 0.0, epsilon = EPS));
             }
         }
     }
@@ -356,8 +368,11 @@ mod merwe_scaled_extra {
         let diag = Cholesky::new(diag_matrix).expect("Cholesky decomposition failed");
         let mean = OVector::<f64, N>::new(0.0, 0.0);
 
-        let (pts, w_m, w_c) = ut.generate(&mean, &diag);
-        let (_mean_rec, sqrt_cov_rec) = unscented_transform::<N, _, f64>(&pts, &w_m, &w_c);
+        let generated = ut.generate(&mean, &diag);
+        let pts_g = generated.sigma_points;
+        let wm_g = generated.mean_weights;
+        let wc_g = generated.covariance_weights;
+        let (_mean_rec, sqrt_cov_rec) = unscented_transform::<N, _, f64>(&pts_g, &wm_g, &wc_g);
 
         let cov_rec = &sqrt_cov_rec * sqrt_cov_rec.transpose();
         for r in 0..2 {
@@ -385,14 +400,16 @@ mod merwe_scaled_extra {
         let sqrt_cov_matrix = OMatrix::<f64, N, N>::identity();
         let sqrt_cov = Cholesky::new(sqrt_cov_matrix).expect("Cholesky decomposition failed");
         let mean = OVector::<f64, N>::new(1.0, -2.0, 0.5);
-        let (pts, _, wc) = ut.generate(&mean, &sqrt_cov);
+        let generated = ut.generate(&mean, &sqrt_cov);
+        let pts_g = generated.sigma_points;
+        let wc_g = generated.covariance_weights;
 
         let n = 3.0;
         let (scale, _, _, wc0) = super::ut_params(n, alpha, beta, kappa);
 
-        assert!(abs_diff_eq!(wc[0], wc0, epsilon = EPS));
+        assert!(abs_diff_eq!(wc_g[0], wc0, epsilon = EPS));
         let idx_pos = 1 + 2;
-        let offset_vec = pts.column(idx_pos) - mean;
+        let offset_vec = pts_g.column(idx_pos) - mean;
         for i in 0..3 {
             let expected = if i == 2 { scale } else { 0.0 };
             assert!(
@@ -421,15 +438,18 @@ mod merwe_scaled_extra {
         let a = Matrix2::new(1.0, 2.0, -0.5, 0.3);
         let b = OVector::<f64, N>::new(0.2, -0.1);
 
-        let (pts, w_m, w_c) = ut.generate(&mean, &sqrt_cov);
+        let generated = ut.generate(&mean, &sqrt_cov);
+        let pts_g = generated.sigma_points;
+        let wm_g = generated.mean_weights;
+        let wc_g = generated.covariance_weights;
 
-        let mut pts2 = pts.clone();
+        let mut pts2 = pts_g.clone();
         for i in 0..pts2.ncols() {
             let y = &a * pts2.column(i) + &b;
             pts2.set_column(i, &y);
         }
 
-        let (mean2, sqrt_cov2) = unscented_transform::<N, _, f64>(&pts2, &w_m, &w_c);
+        let (mean2, sqrt_cov2) = unscented_transform::<N, _, f64>(&pts2, &wm_g, &wc_g);
         let mean_expected = &a * mean + &b;
         let cov_expected = a * (&sqrt_cov.l() * &sqrt_cov.l().transpose()) * a.transpose();
 

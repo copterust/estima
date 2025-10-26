@@ -36,7 +36,7 @@ where
             let wm0 = T::one() / point_count;
             let wc0 = wm0 + (T::one() - alpha * alpha + beta);
 
-            let remaining = T::from_usize(dim * 2).unwrap_or_else(|| two);
+            let remaining = T::from_usize(dim * 2).unwrap_or(two);
             let inv = if remaining.abs() < T::default_epsilon() {
                 T::one() / (two * (n.abs() + T::one()))
             } else {
