@@ -92,7 +92,7 @@ where
         }
 
         if points.len() != weights.len() {
-            return Err(MeanError::EmptyInput);
+            return Err(MeanError::LengthMismatch);
         }
 
         let mut weighted_sum = OVector::<T, Dim>::zeros();

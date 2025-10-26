@@ -9,6 +9,7 @@ use nalgebra::{allocator::Allocator, DefaultAllocator, DimName, OMatrix, OVector
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MeanError {
     EmptyInput,
+    LengthMismatch,
     NoPositiveWeights,
     NotConverged,
     InvalidTolerance,

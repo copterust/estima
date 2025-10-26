@@ -201,6 +201,7 @@ where
                 MeanError::EmptyInput
                 | MeanError::NoPositiveWeights
                 | MeanError::InvalidTolerance
+                | MeanError::LengthMismatch
                 | MeanError::IndexOutOfBounds,
             ) => return Err(UkfError::MeanComputationFailed),
         };
