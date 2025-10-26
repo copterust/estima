@@ -1,6 +1,7 @@
 # Estima
 
-`estima` is a Rust crate for state estimation providing Square Root Unscented Kalman Filter.
+`estima` is a Rust crate for state estimation providing Square Root Unscented Kalman Filter
+with manifolds.
 
 Constant velocity model example could be run with:
 
@@ -8,4 +9,10 @@ Constant velocity model example could be run with:
 cd estima && cargo run --example cv_ukf
 ```
 
-N.B. You need [rerun](https://rerun.io/) to run this example.
+## Rerun Visualization
+
+If you have [rerun](https://rerun.io/) installed you could run:
+
+```bash
+cargo run --example cv_ukf --features rerun
+```
