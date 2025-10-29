@@ -31,3 +31,7 @@ rand_distr = "0.5.1"
 [[example]]
 name = "cv_ukf"
 path = "examples/cv_ukf.rs"
+
+[[example]]
+name = "ahrs_ukf"
+path = "examples/ahrs_ukf.rs"
