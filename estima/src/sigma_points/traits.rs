@@ -7,6 +7,18 @@ use nalgebra::{Cholesky, DefaultAllocator, DimName, OMatrix, OVector, RealField}
 /// The compile‐time number of sigma points (2 × N + 1) for the standard UT.
 pub type UTSigmaCount<N> = <<N as DimMul<U2>>::Output as DimAdd<U1>>::Output;
 
+pub struct SigmaPointsGenerated<T, N, SigmaCount>
+where
+    T: RealField,
+    N: DimName,
+    SigmaCount: DimName,
+    DefaultAllocator: Allocator<N> + Allocator<SigmaCount> + Allocator<N, SigmaCount>,
+{
+    pub sigma_points: OMatrix<T, N, SigmaCount>,
+    pub mean_weights: OVector<T, SigmaCount>,
+    pub covariance_weights: OVector<T, SigmaCount>,
+}
+
 /// Trait for sigma point generators
 pub trait SigmaPoints<N: DimName, T: RealField>
 where
@@ -24,11 +36,7 @@ where
         &self,
         mean: &OVector<T, N>,
         sqrt_cov: &Cholesky<T, N>,
-    ) -> (
-        OMatrix<T, N, Self::SigmaCount>, // sigma points
-        OVector<T, Self::SigmaCount>,    // mean weights
-        OVector<T, Self::SigmaCount>,    // covariance weights
-    );
+    ) -> SigmaPointsGenerated<T, N, <Self as SigmaPoints<N, T>>::SigmaCount>;
 }
 
 /// In‐place sigma‐point generator trait

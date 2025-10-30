@@ -1,4 +1,5 @@
-use super::traits::{SigmaPoints, SigmaPointsInPlace, UTSigmaCount};
+use super::traits::{SigmaPoints, SigmaPointsGenerated, SigmaPointsInPlace, UTSigmaCount};
+use super::weights::UTWeights;
 use nalgebra::{
     base::{
         allocator::Allocator,
@@ -22,6 +23,18 @@ pub struct MerweScaled<S: RealField> {
     pub kappa: S,
 }
 
+impl<S: RealField> MerweScaled<S> {
+    /// Create a new MerweScaled sigma point generator.
+    ///
+    /// # Arguments
+    /// * `alpha` - Spread of sigma points (typically 1e-3 to 1)
+    /// * `beta` - Prior knowledge parameter (2 is optimal for Gaussian)
+    /// * `kappa` - Secondary scaling (typically 0 or 3-n)
+    pub fn new(alpha: S, beta: S, kappa: S) -> Self {
+        Self { alpha, beta, kappa }
+    }
+}
+
 /// Merwe sigma points generator for dimension L and scalar S
 impl<L, S> SigmaPoints<L, S> for MerweScaled<S>
 where
@@ -39,60 +52,36 @@ where
         &self,
         mean: &OVector<S, L>,
         sqrt_cov: &Cholesky<S, L>,
-    ) -> (
-        OMatrix<S, L, Self::SigmaCount>, // sigma points
-        OVector<S, Self::SigmaCount>,    // mean weights
-        OVector<S, Self::SigmaCount>,    // covariance weights
-    ) {
-        let n = S::from_usize(L::dim()).unwrap();
+    ) -> SigmaPointsGenerated<S, L, <Self as SigmaPoints<L, S>>::SigmaCount> {
+        let dim = L::dim();
+        let n = S::from_usize(dim).unwrap();
         let lambda = self.alpha * self.alpha * (n + self.kappa) - n;
-
-        let mut sigma_pts = OMatrix::<S, L, Self::SigmaCount>::zeros();
-        let mut w_mean = OVector::<S, Self::SigmaCount>::zeros();
-        let mut w_covar = OVector::<S, Self::SigmaCount>::zeros();
-
         let n_lambda = n + lambda;
-
-        let (wm0, wc0, inv_two_n, scale) = if n_lambda.abs() < S::default_epsilon() {
-            // Handle degenerate case
-            let inv_2n = S::one() / (S::from_usize(2).unwrap() * n);
-            (
-                lambda / n_lambda,
-                lambda / n_lambda + (S::one() - self.alpha * self.alpha + self.beta),
-                inv_2n,
-                (n + self.kappa).sqrt(),
-            )
+        let scale = if n_lambda.abs() < S::default_epsilon() {
+            S::default_epsilon().sqrt()
         } else {
-            (
-                lambda / n_lambda,
-                lambda / n_lambda + (S::one() - self.alpha * self.alpha + self.beta),
-                S::one() / (S::from_usize(2).unwrap() * n_lambda),
-                n_lambda.sqrt(),
-            )
+            n_lambda.sqrt()
         };
 
-        w_mean[0] = wm0;
-        w_covar[0] = wc0;
-
+        let weights =
+            UTWeights::<UTSigmaCount<L>, S>::from_merwe(dim, self.alpha, self.beta, self.kappa);
         let scaled_sqrt = sqrt_cov.l() * scale;
 
+        let mut sigma_pts = OMatrix::<S, L, Self::SigmaCount>::zeros();
         sigma_pts.set_column(0, mean);
 
-        for i in 0..L::dim() {
-            w_mean[i + 1] = inv_two_n;
-            w_covar[i + 1] = inv_two_n;
-            w_mean[i + 1 + L::dim()] = inv_two_n;
-            w_covar[i + 1 + L::dim()] = inv_two_n;
-
+        for i in 0..dim {
             let col = scaled_sqrt.column(i);
-
             sigma_pts.column_mut(i + 1).copy_from(&(mean + col));
-            sigma_pts
-                .column_mut(i + 1 + L::dim())
-                .copy_from(&(mean - col));
+            sigma_pts.column_mut(i + 1 + dim).copy_from(&(mean - col));
         }
 
-        (sigma_pts, w_mean, w_covar)
+        let UTWeights { w_mean, w_covar } = weights;
+        SigmaPointsGenerated {
+            sigma_points: sigma_pts,
+            mean_weights: w_mean,
+            covariance_weights: w_covar,
+        }
     }
 }
 
@@ -117,55 +106,42 @@ where
         w_mean: &mut OVector<S, Self::SigmaCount>,
         w_covar: &mut OVector<S, Self::SigmaCount>,
     ) {
-        let n = S::from_usize(L::dim()).unwrap();
+        let dim = L::dim();
+        let n = S::from_usize(dim).unwrap();
         let lambda = self.alpha * self.alpha * (n + self.kappa) - n;
-
         let n_lambda = n + lambda;
-
-        let (wm0, wc0, inv, scale) = if n_lambda.abs() < S::default_epsilon() {
-            // Handle degenerate case where n_lambda is near zero
-            // In such cases, we need to ensure weights sum to 1.0
-            let point_count = S::from_usize(L::dim() * 2 + 1).unwrap();
-            let remaining_count = S::from_usize(L::dim() * 2).unwrap();
-
-            // Set the center point weight to ensure sum = 1
-            let wm0 = S::one() / point_count;
-
-            // Set all other weights equal
-            let inv_2n = S::one() / remaining_count;
-            (
-                wm0,
-                wm0 + (S::one() - self.alpha * self.alpha + self.beta),
-                inv_2n,
-                S::default_epsilon().sqrt(),
-            )
+        let scale = if n_lambda.abs() < S::default_epsilon() {
+            S::default_epsilon().sqrt()
         } else {
-            (
-                lambda / n_lambda,
-                lambda / n_lambda + (S::one() - self.alpha * self.alpha + self.beta),
-                S::one() / (S::from_usize(2).unwrap() * n_lambda),
-                n_lambda.sqrt(),
-            )
+            n_lambda.sqrt()
         };
 
-        w_mean[0] = wm0;
-        w_covar[0] = wc0;
+        let weights =
+            UTWeights::<UTSigmaCount<L>, S>::from_merwe(dim, self.alpha, self.beta, self.kappa);
+        w_mean.copy_from(&weights.w_mean);
+        w_covar.copy_from(&weights.w_covar);
 
         let scaled_sqrt = sqrt_cov.l() * scale;
 
         sigma_pts.set_column(0, mean);
 
-        for i in 0..L::dim() {
-            w_mean[i + 1] = inv;
-            w_covar[i + 1] = inv;
-            w_mean[i + 1 + L::dim()] = inv;
-            w_covar[i + 1 + L::dim()] = inv;
-
+        for i in 0..dim {
             let col = scaled_sqrt.column(i);
             sigma_pts.column_mut(i + 1).copy_from(&(mean + col));
-            sigma_pts
-                .column_mut(i + 1 + L::dim())
-                .copy_from(&(mean - col));
+            sigma_pts.column_mut(i + 1 + dim).copy_from(&(mean - col));
         }
+    }
+}
+
+impl<S: RealField + Copy> MerweScaled<S> {
+    /// Convenience helper to compute UT weights for dimension `L`.
+    pub fn weights<L>(&self) -> UTWeights<UTSigmaCount<L>, S>
+    where
+        L: DimName + DimMul<U2>,
+        <L as DimMul<U2>>::Output: DimAdd<U1>,
+        <<L as DimMul<U2>>::Output as DimAdd<U1>>::Output: DimName,
+        DefaultAllocator: Allocator<UTSigmaCount<L>>,
+    {
+        UTWeights::from_merwe(L::dim(), self.alpha, self.beta, self.kappa)
     }
 }
