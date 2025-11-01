@@ -34,3 +34,6 @@ If you have [rerun](https://rerun.io/) installed you could run:
 ```bash
 cargo run --example ahrs_ukf --features rerun
 ```
+
+# References
+Inspired by [arXiv:2102.03804](https://arxiv.org/abs/2102.03804) [cs.RO] paper.
