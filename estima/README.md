@@ -1,7 +1,7 @@
 # Estima
 
 `estima` is a Rust crate for state estimation providing Square Root Unscented Kalman Filter
-with manifolds.
+on manifolds.
 
 ## Constant Velocity Model
 
