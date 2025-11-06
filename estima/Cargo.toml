@@ -35,3 +35,7 @@ path = "examples/cv_ukf.rs"
 [[example]]
 name = "ahrs_ukf"
 path = "examples/ahrs_ukf.rs"
+
+[[example]]
+name = "s2_path"
+path = "examples/s2_path.rs"
