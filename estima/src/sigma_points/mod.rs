@@ -4,7 +4,7 @@ pub use self::merwe_scaled::{MerweScaled, MerweScaled as MerweScaledSigmaPoints}
 pub use self::traits::{SigmaPoints, SigmaPointsInPlace, UTSigmaCount};
 pub use self::weights::UTWeights;
 
-mod merwe_scaled;
+pub mod merwe_scaled;
 
 #[cfg(test)]
 mod tests;

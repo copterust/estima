@@ -427,3 +427,4 @@ pub trait ManifoldMeasurement<
 pub mod composite;
 pub mod euclidean;
 pub mod quaternion;
+pub mod s2;
