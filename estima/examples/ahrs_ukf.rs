@@ -182,9 +182,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let initial_covariance = Matrix6::<f32>::identity() * 0.2;
 
     let mut process_noise = Matrix6::<f32>::zeros();
+    let process_noise_std: f32 = 0.05;
     process_noise
         .fixed_view_mut::<3, 3>(0, 0)
-        .fill_diagonal(0.05f32.powi(2));
+        .fill_diagonal(process_noise_std.powi(2));
     process_noise
         .fixed_view_mut::<3, 3>(3, 3)
         .fill_diagonal(gyro_noise.powi(2) * dt);
@@ -231,7 +232,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let swing_period_steps = 200;
     let total_steps = swing_period_steps * 6;
     let swing_amplitude = PI;
-    let omega_mag = swing_amplitude / (swing_period_steps as f32 / 2.0 * dt);
+    let swing_period_duration = swing_period_steps as f32 * dt;
+    let omega_mag = swing_amplitude / (swing_period_duration / 2.0);
 
     for step in 0..total_steps {
         #[cfg(feature = "rerun")]
