@@ -1,4 +1,4 @@
-use core::f64::consts::PI;
+use core::f32::consts::PI;
 
 use estima::manifold::{
     composite::CompositeManifold, euclidean::EuclideanManifold, quaternion::UnitQuaternionManifold,
@@ -10,9 +10,9 @@ use nalgebra::{Matrix6, UnitQuaternion, Vector3, Vector6, U3, U6};
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
 
-type AttitudeManifold = UnitQuaternionManifold<f64>;
-type BiasManifold = EuclideanManifold<f64, U3>;
-type AHRSState = CompositeManifold<f64, AttitudeManifold, BiasManifold, U3, U3>;
+type AttitudeManifold = UnitQuaternionManifold<f32>;
+type BiasManifold = EuclideanManifold<f32, U3>;
+type AHRSState = CompositeManifold<f32, AttitudeManifold, BiasManifold, U3, U3>;
 
 #[cfg(feature = "rerun")]
 struct Visualizer {
@@ -35,16 +35,16 @@ impl Visualizer {
     fn log_attitude(
         &self,
         path: &str,
-        quat: &UnitQuaternion<f64>,
+        quat: &UnitQuaternion<f32>,
     ) -> Result<(), Box<dyn std::error::Error>> {
         use rerun::{archetypes::Transform3D, datatypes::Quaternion as RerunQuaternion};
         self.rec.log(
             path,
             &Transform3D::from_rotation(RerunQuaternion::from_xyzw([
-                quat.coords[0] as f32,
-                quat.coords[1] as f32,
-                quat.coords[2] as f32,
-                quat.coords[3] as f32,
+                quat.coords[0],
+                quat.coords[1],
+                quat.coords[2],
+                quat.coords[3],
             ])),
         )?;
         Ok(())
@@ -69,26 +69,26 @@ impl Visualizer {
     }
 }
 
-fn create_state(attitude: UnitQuaternion<f64>, bias: Vector3<f64>) -> AHRSState {
+fn create_state(attitude: UnitQuaternion<f32>, bias: Vector3<f32>) -> AHRSState {
     CompositeManifold::new(
         UnitQuaternionManifold::new(attitude),
         EuclideanManifold::new(bias),
     )
 }
 
-fn attitude_component(state: &AHRSState) -> &UnitQuaternion<f64> {
+fn attitude_component(state: &AHRSState) -> &UnitQuaternion<f32> {
     state.first.as_quaternion()
 }
 
-fn bias_component(state: &AHRSState) -> &Vector3<f64> {
+fn bias_component(state: &AHRSState) -> &Vector3<f32> {
     state.second.as_vector()
 }
 
 #[derive(Clone)]
 struct GyroscopeProcess;
 
-impl ManifoldProcess<AHRSState, U3, f64> for GyroscopeProcess {
-    fn predict(&self, state: &AHRSState, dt: f64, control: Option<&Vector3<f64>>) -> AHRSState {
+impl ManifoldProcess<AHRSState, U3, f32> for GyroscopeProcess {
+    fn predict(&self, state: &AHRSState, dt: f32, control: Option<&Vector3<f32>>) -> AHRSState {
         let bias = bias_component(state);
         let attitude = attitude_component(state);
 
@@ -104,8 +104,8 @@ impl ManifoldProcess<AHRSState, U3, f64> for GyroscopeProcess {
 
 #[derive(Clone)]
 struct AccelMagMeasurement {
-    gravity_ref: Vector3<f64>,
-    magnetic_ref: Vector3<f64>,
+    gravity_ref: Vector3<f32>,
+    magnetic_ref: Vector3<f32>,
 }
 
 impl AccelMagMeasurement {
@@ -117,8 +117,8 @@ impl AccelMagMeasurement {
     }
 }
 
-impl ManifoldMeasurement<AHRSState, U6, U6, f64> for AccelMagMeasurement {
-    fn measure(&self, state: &AHRSState) -> Vector6<f64> {
+impl ManifoldMeasurement<AHRSState, U6, U6, f32> for AccelMagMeasurement {
+    fn measure(&self, state: &AHRSState) -> Vector6<f32> {
         let attitude = attitude_component(state);
         let accel = -attitude.inverse().transform_vector(&self.gravity_ref);
         let mag = attitude.inverse().transform_vector(&self.magnetic_ref);
@@ -136,7 +136,7 @@ impl ManifoldMeasurement<AHRSState, U6, U6, f64> for AccelMagMeasurement {
         )
     }
 
-    fn residual(&self, predicted: &Vector6<f64>, measured: &Vector6<f64>) -> Vector6<f64> {
+    fn residual(&self, predicted: &Vector6<f32>, measured: &Vector6<f32>) -> Vector6<f32> {
         let pred_accel = Vector3::new(predicted[0], predicted[1], predicted[2]).normalize();
         let pred_mag = Vector3::new(predicted[3], predicted[4], predicted[5]).normalize();
 
@@ -156,7 +156,7 @@ impl ManifoldMeasurement<AHRSState, U6, U6, f64> for AccelMagMeasurement {
         )
     }
 
-    fn innovation(&self, measured: &Vector6<f64>, predicted_mean: &Vector6<f64>) -> Vector6<f64> {
+    fn innovation(&self, measured: &Vector6<f32>, predicted_mean: &Vector6<f32>) -> Vector6<f32> {
         self.residual(predicted_mean, measured)
     }
 }
@@ -165,10 +165,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     #[cfg(feature = "rerun")]
     let viz = Visualizer::new("estima_ahrs_ukf")?;
 
-    let dt: f64 = 0.01;
-    let gyro_noise: f64 = 0.01;
-    let accel_noise: f64 = 0.1;
-    let mag_noise: f64 = 0.1;
+    let dt: f32 = 0.01;
+    let gyro_noise: f32 = 0.01;
+    let accel_noise: f32 = 0.1;
+    let mag_noise: f32 = 0.1;
 
     let true_attitude_initial = UnitQuaternion::from_euler_angles(0.1, -0.1, 0.05);
     let true_bias = Vector3::new(0.01, -0.01, 0.005);
@@ -179,17 +179,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Vector3::zeros(),
     );
 
-    let initial_covariance = Matrix6::<f64>::identity() * 0.2;
+    let initial_covariance = Matrix6::<f32>::identity() * 0.2;
 
-    let mut process_noise = Matrix6::<f64>::zeros();
+    let mut process_noise = Matrix6::<f32>::zeros();
     process_noise
         .fixed_view_mut::<3, 3>(0, 0)
-        .fill_diagonal(0.05f64.powi(2));
+        .fill_diagonal(0.05f32.powi(2));
     process_noise
         .fixed_view_mut::<3, 3>(3, 3)
         .fill_diagonal(gyro_noise.powi(2) * dt);
 
-    let mut measurement_noise = Matrix6::<f64>::zeros();
+    let mut measurement_noise = Matrix6::<f32>::zeros();
     measurement_noise
         .fixed_view_mut::<3, 3>(0, 0)
         .fill_diagonal(accel_noise.powi(2));
@@ -210,6 +210,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         measurement_noise,
         sigma_gen,
         weights,
+        estima::manifold::CompositeStrategy::new(
+            estima::manifold::ChordalMean::default(),
+            estima::manifold::EuclideanMean,
+        ),
     )
     .with_regularization_factor(1e-3);
 
@@ -227,7 +231,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let swing_period_steps = 200;
     let total_steps = swing_period_steps * 6;
     let swing_amplitude = PI;
-    let omega_mag = swing_amplitude / (swing_period_steps as f64 / 2.0 * dt);
+    let omega_mag = swing_amplitude / (swing_period_steps as f32 / 2.0 * dt);
 
     for step in 0..total_steps {
         #[cfg(feature = "rerun")]
@@ -310,11 +314,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         {
             let true_axes = body_axes.map(|axis| {
                 let v = true_attitude.transform_vector(&axis);
-                [v.x as f32, v.y as f32, v.z as f32]
+                [v.x, v.y, v.z]
             });
             let est_axes = body_axes.map(|axis| {
                 let v = estimated_attitude.transform_vector(&axis);
-                [v.x as f32, v.y as f32, v.z as f32]
+                [v.x, v.y, v.z]
             });
 
             viz.log_attitude("attitude/true", &true_attitude)?;

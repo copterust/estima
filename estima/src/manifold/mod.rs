@@ -428,3 +428,7 @@ pub mod composite;
 pub mod euclidean;
 pub mod quaternion;
 pub mod s2;
+pub mod averaging;
+pub use averaging::{
+    ChordalMean, CompositeStrategy, EuclideanMean, FrechetMean, ManifoldWeightedMean,
+};

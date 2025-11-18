@@ -5,7 +5,9 @@ use core::marker::PhantomData;
 use nalgebra::allocator::Allocator;
 use nalgebra::{Cholesky, Const, DefaultAllocator, DimName, OMatrix, OVector, RealField};
 
-use crate::manifold::{InitialGuess, Manifold, ManifoldMeasurement, ManifoldProcess, MeanError};
+use crate::manifold::{
+    InitialGuess, Manifold, ManifoldMeasurement, ManifoldProcess, ManifoldWeightedMean, MeanError,
+};
 use crate::sigma_points::SigmaPointsInPlace;
 use crate::sigma_points::UTWeights;
 
@@ -27,6 +29,7 @@ pub struct UnscentedKalmanFilter<
     ControlDim,
     MeasDim,
     SigmaGen,
+    ManifoldAveraging,
     T,
 > where
     TangentDim: DimName,
@@ -36,6 +39,7 @@ pub struct UnscentedKalmanFilter<
     Process: ManifoldProcess<Nominal, ControlDim, T>,
     Measurement: ManifoldMeasurement<Nominal, TangentDim, MeasDim, T>,
     SigmaGen: SigmaPointsInPlace<TangentDim, T>,
+    ManifoldAveraging: ManifoldWeightedMean<Nominal, TangentDim, T>,
     T: RealField + Copy,
     DefaultAllocator: Allocator<TangentDim>
         + Allocator<TangentDim, TangentDim>
@@ -63,11 +67,12 @@ pub struct UnscentedKalmanFilter<
     engine: UKFEngine<TangentDim, MeasDim, SigmaGen::SigmaCount, T>,
     nominal_sigmas: Vec<Nominal>,
     predicted_sigmas: Vec<Nominal>,
+    manifold_averaging: ManifoldAveraging,
     weighted_mean: LinearAveraging,
     _phantom_control: PhantomData<ControlDim>,
 }
 
-impl<Nominal, Process, Measurement, TangentDim, ControlDim, MeasDim, SigmaGen, T>
+impl<Nominal, Process, Measurement, TangentDim, ControlDim, MeasDim, SigmaGen, ManifoldAveraging, T>
     UnscentedKalmanFilter<
         Nominal,
         Process,
@@ -76,6 +81,7 @@ impl<Nominal, Process, Measurement, TangentDim, ControlDim, MeasDim, SigmaGen, T
         ControlDim,
         MeasDim,
         SigmaGen,
+        ManifoldAveraging,
         T,
     >
 where
@@ -86,6 +92,7 @@ where
     Process: ManifoldProcess<Nominal, ControlDim, T>,
     Measurement: ManifoldMeasurement<Nominal, TangentDim, MeasDim, T>,
     SigmaGen: SigmaPointsInPlace<TangentDim, T>,
+    ManifoldAveraging: ManifoldWeightedMean<Nominal, TangentDim, T>,
     T: RealField + Copy,
     DefaultAllocator: Allocator<TangentDim>
         + Allocator<TangentDim, TangentDim>
@@ -114,6 +121,7 @@ where
         measurement_noise_cov: OMatrix<T, MeasDim, MeasDim>,
         sigma_generator: SigmaGen,
         weights: UTWeights<SigmaGen::SigmaCount, T>,
+        manifold_averaging: ManifoldAveraging,
     ) -> Self {
         let n_sigmas = SigmaGen::SigmaCount::dim();
         let regularization_factor = T::from_subset(&1e-6);
@@ -137,6 +145,7 @@ where
             engine,
             nominal_sigmas: vec![initial_nominal.clone(); n_sigmas],
             predicted_sigmas: vec![initial_nominal; n_sigmas],
+            manifold_averaging,
             weighted_mean: LinearAveraging,
             _phantom_control: PhantomData,
         }
@@ -186,12 +195,10 @@ where
                 .predict(&self.nominal_sigmas[i], dt, control);
         }
 
-        let weighted_mean_result = Nominal::weighted_mean(
+        let weighted_mean_result = self.manifold_averaging.compute_mean(
             &self.predicted_sigmas,
             engine.weights.w_mean.as_slice(),
-            T::from_subset(&1e-9),
             InitialGuess::MaxWeight,
-            100,
         );
 
         self.nominal_state = match weighted_mean_result {
@@ -355,6 +362,7 @@ mod tests {
             measurement_noise,
             sigma_gen,
             weights,
+            crate::manifold::averaging::EuclideanMean,
         );
 
         ukf.predict(0.1, None).unwrap();

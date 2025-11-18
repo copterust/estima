@@ -242,6 +242,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         U1,
         U1,
         MerweScaledSigmaPoints<f64>,
+        estima::manifold::averaging::EuclideanMean,
         f64,
     > = UnscentedKalmanFilter::new(
         initial_state,
@@ -252,6 +253,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         measurement_noise,
         sigma_gen,
         weights,
+        estima::manifold::averaging::EuclideanMean,
     );
 
     let mut rng = rand::rngs::StdRng::seed_from_u64(42);
