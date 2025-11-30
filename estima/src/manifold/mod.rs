@@ -103,20 +103,22 @@ where
     /// 1. Starts with the first point as initial guess
     /// 2. Iteratively moves toward the weighted mean in tangent space
     /// 3. Converges when the update is sufficiently small
-    fn weighted_mean(
-        points: &[Self],
+    fn weighted_mean<'a, I>(
+        points: I,
         weights: &[T],
         tolerance: T,
         initial_guess: InitialGuess<Self>,
         max_iterations: usize,
     ) -> Result<Self, MeanError>
     where
-        Self: Manifold<TangentDim, T>,
+        Self: Manifold<TangentDim, T> + 'a,
         TangentDim: DimName,
         T: RealField + Copy,
         DefaultAllocator: Allocator<TangentDim>,
+        I: IntoIterator<Item = &'a Self> + Clone,
+        I::IntoIter: Clone,
     {
-        if points.is_empty() || weights.is_empty() {
+        if weights.is_empty() {
             return Err(MeanError::EmptyInput);
         }
 
@@ -130,15 +132,19 @@ where
 
         // choose initial mean
         let mut mean = match initial_guess {
-            InitialGuess::First => points[0].clone(),
-            InitialGuess::Index(idx) => {
-                if idx >= points.len() {
-                    return Err(MeanError::IndexOutOfBounds);
-                }
-                points[idx].clone()
-            }
-            InitialGuess::MaxWeight => match choose_initial_index(weights, points.len()) {
-                Some(idx) => points[idx].clone(),
+            InitialGuess::First => match points.clone().into_iter().next() {
+                Some(p) => p.clone(),
+                None => return Err(MeanError::EmptyInput),
+            },
+            InitialGuess::Index(idx) => match points.clone().into_iter().nth(idx) {
+                Some(p) => p.clone(),
+                None => return Err(MeanError::IndexOutOfBounds),
+            },
+            InitialGuess::MaxWeight => match choose_initial_index(weights, weights.len()) {
+                Some(idx) => match points.clone().into_iter().nth(idx) {
+                    Some(p) => p.clone(),
+                    None => return Err(MeanError::IndexOutOfBounds),
+                },
                 None => return Err(MeanError::NoPositiveWeights),
             },
             InitialGuess::Provided(m) => m,
@@ -151,7 +157,7 @@ where
             let mut delta = OVector::<T, TangentDim>::zeros();
             let mut total_weight = T::zero();
 
-            for (point, &weight) in points.iter().zip(weights.iter()) {
+            for (point, &weight) in points.clone().into_iter().zip(weights.iter()) {
                 if weight > zero {
                     // avoid allocating the scaled vector temporary
                     let mut tangent = mean.local(point);

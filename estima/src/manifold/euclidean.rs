@@ -77,8 +77,8 @@ where
         &other.vector - &self.vector
     }
 
-    fn weighted_mean(
-        points: &[Self],
+    fn weighted_mean<'a, I>(
+        points: I,
         weights: &[T],
         _tolerance: T,
         _initial_guess: InitialGuess<Self>,
@@ -86,19 +86,17 @@ where
     ) -> Result<Self, MeanError>
     where
         DefaultAllocator: Allocator<Dim>,
+        I: IntoIterator<Item = &'a Self> + Clone,
+        I::IntoIter: Clone,
     {
-        if points.is_empty() || weights.is_empty() {
+        if weights.is_empty() {
             return Err(MeanError::EmptyInput);
-        }
-
-        if points.len() != weights.len() {
-            return Err(MeanError::LengthMismatch);
         }
 
         let mut weighted_sum = OVector::<T, Dim>::zeros();
         let mut total_weight = T::zero();
 
-        for (point, &weight) in points.iter().zip(weights.iter()) {
+        for (point, &weight) in points.into_iter().zip(weights.iter()) {
             if weight > T::zero() {
                 weighted_sum += &point.vector * weight;
                 total_weight += weight;

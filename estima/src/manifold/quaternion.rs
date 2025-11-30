@@ -70,8 +70,8 @@ where
         relative.scaled_axis()
     }
 
-    fn weighted_mean(
-        points: &[Self],
+    fn weighted_mean<'a, I>(
+        points: I,
         weights: &[T],
         tolerance: T,
         initial_guess: InitialGuess<Self>,
@@ -79,12 +79,11 @@ where
     ) -> Result<Self, MeanError>
     where
         DefaultAllocator: Allocator<U3>,
+        I: IntoIterator<Item = &'a Self> + Clone,
+        I::IntoIter: Clone,
     {
-        if points.is_empty() || weights.is_empty() {
+        if weights.is_empty() {
             return Err(MeanError::EmptyInput);
-        }
-        if points.len() != weights.len() {
-            return Err(MeanError::LengthMismatch);
         }
         if tolerance < T::zero() {
             return Err(MeanError::InvalidTolerance);
@@ -94,13 +93,14 @@ where
         }
 
         let mut mean = match initial_guess {
-            InitialGuess::First => points[0],
-            InitialGuess::Index(idx) => {
-                if idx >= points.len() {
-                    return Err(MeanError::IndexOutOfBounds);
-                }
-                points[idx]
-            }
+            InitialGuess::First => match points.clone().into_iter().next() {
+                Some(p) => *p,
+                None => return Err(MeanError::EmptyInput),
+            },
+            InitialGuess::Index(idx) => match points.clone().into_iter().nth(idx) {
+                Some(p) => *p,
+                None => return Err(MeanError::IndexOutOfBounds),
+            },
             InitialGuess::MaxWeight => {
                 let mut best_idx = None;
                 let mut best_weight = T::zero();
@@ -111,7 +111,10 @@ where
                     }
                 }
                 match best_idx {
-                    Some(i) => points[i],
+                    Some(i) => match points.clone().into_iter().nth(i) {
+                        Some(p) => *p,
+                        None => return Err(MeanError::IndexOutOfBounds),
+                    },
                     None => return Err(MeanError::NoPositiveWeights),
                 }
             }
@@ -125,7 +128,7 @@ where
             delta.fill(T::zero());
             let mut total_weight = T::zero();
 
-            for (point, &weight) in points.iter().zip(weights.iter()) {
+            for (point, &weight) in points.clone().into_iter().zip(weights.iter()) {
                 if weight > T::zero() {
                     delta += mean.local(point) * weight;
                     total_weight += weight;

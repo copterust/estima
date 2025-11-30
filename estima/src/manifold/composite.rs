@@ -4,7 +4,7 @@
 //! manifolds. The tangent space is the direct sum of the component tangent spaces.
 
 use super::{InitialGuess, Manifold, MeanError};
-use alloc::vec::Vec;
+
 use core::marker::PhantomData;
 use nalgebra::{
     allocator::Allocator, DefaultAllocator, DimAdd, DimName, DimSum, OMatrix, OVector, RealField,
@@ -100,8 +100,8 @@ where
         result
     }
 
-    fn weighted_mean(
-        points: &[Self],
+    fn weighted_mean<'a, I>(
+        points: I,
         weights: &[T],
         tolerance: T,
         initial_guess: InitialGuess<Self>,
@@ -109,13 +109,18 @@ where
     ) -> Result<Self, MeanError>
     where
         DefaultAllocator: Allocator<DimSum<Dim1, Dim2>>,
+        I: IntoIterator<Item = &'a Self> + Clone,
+        I::IntoIter: Clone,
+        M1: 'a,
+        M2: 'a,
     {
-        if points.is_empty() {
+        if weights.is_empty() {
             return Err(MeanError::EmptyInput);
         }
 
-        let first_points: Vec<M1> = points.iter().map(|p| p.first.clone()).collect();
-        let second_points: Vec<M2> = points.iter().map(|p| p.second.clone()).collect();
+        let points_clone = points.clone();
+        let first_points = points.into_iter().map(|p| &p.first);
+        let second_points = points_clone.into_iter().map(|p| &p.second);
 
         let first_guess = match &initial_guess {
             InitialGuess::First => InitialGuess::First,
@@ -131,14 +136,14 @@ where
         };
 
         let mean_first = M1::weighted_mean(
-            &first_points,
+            first_points,
             weights,
             tolerance,
             first_guess,
             max_iterations,
         )?;
         let mean_second = M2::weighted_mean(
-            &second_points,
+            second_points,
             weights,
             tolerance,
             second_guess,

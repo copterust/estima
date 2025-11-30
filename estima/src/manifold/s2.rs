@@ -62,8 +62,8 @@ where
     // Choose a vector `a` that is not collinear with `p`.
     // If `p` is mostly aligned with x-axis, choose y-axis to be `a`. Otherwise, choose x-axis.
     // This avoids issues near poles of the chosen axis `a`.
-    // TODO remove unwrap
-    let a = if p.x.abs() > T::from_f64(0.9).unwrap() {
+    let threshold = T::from_subset(&0.9);
+    let a = if p.x.abs() > threshold {
         Vector3::y()
     } else {
         Vector3::x()
@@ -98,7 +98,7 @@ where
 
         let dot = p1
             .dot(p2)
-            .clamp(T::from_f64(-1.0).unwrap(), T::from_f64(1.0).unwrap());
+            .clamp(T::from_subset(&-1.0), T::from_subset(&1.0));
         let theta = dot.acos();
 
         if theta < T::default_epsilon() {
@@ -122,8 +122,8 @@ where
         Vector2::new(v.dot(&e1), v.dot(&e2))
     }
 
-    fn weighted_mean(
-        points: &[Self],
+    fn weighted_mean<'a, I>(
+        points: I,
         weights: &[T],
         tolerance: T,
         initial_guess: InitialGuess<Self>,
@@ -131,12 +131,11 @@ where
     ) -> Result<Self, MeanError>
     where
         DefaultAllocator: Allocator<U2>,
+        I: IntoIterator<Item = &'a Self> + Clone,
+        I::IntoIter: Clone,
     {
-        if points.is_empty() || weights.is_empty() {
+        if weights.is_empty() {
             return Err(MeanError::EmptyInput);
-        }
-        if points.len() != weights.len() {
-            return Err(MeanError::LengthMismatch);
         }
         if tolerance < T::zero() {
             return Err(MeanError::InvalidTolerance);
@@ -146,13 +145,14 @@ where
         }
 
         let mut mean = match initial_guess {
-            InitialGuess::First => points[0],
-            InitialGuess::Index(idx) => {
-                if idx >= points.len() {
-                    return Err(MeanError::IndexOutOfBounds);
-                }
-                points[idx]
-            }
+            InitialGuess::First => match points.clone().into_iter().next() {
+                Some(p) => *p,
+                None => return Err(MeanError::EmptyInput),
+            },
+            InitialGuess::Index(idx) => match points.clone().into_iter().nth(idx) {
+                Some(p) => *p,
+                None => return Err(MeanError::IndexOutOfBounds),
+            },
             InitialGuess::MaxWeight => {
                 let mut best_idx = None;
                 let mut best_weight = T::zero();
@@ -163,7 +163,10 @@ where
                     }
                 }
                 match best_idx {
-                    Some(i) => points[i],
+                    Some(i) => match points.clone().into_iter().nth(i) {
+                        Some(p) => *p,
+                        None => return Err(MeanError::IndexOutOfBounds),
+                    },
                     None => return Err(MeanError::NoPositiveWeights),
                 }
             }
@@ -177,7 +180,7 @@ where
             delta.fill(T::zero());
             let mut total_weight = T::zero();
 
-            for (point, &weight) in points.iter().zip(weights.iter()) {
+            for (point, &weight) in points.clone().into_iter().zip(weights.iter()) {
                 if weight > T::zero() {
                     delta += mean.local(point) * weight;
                     total_weight += weight;

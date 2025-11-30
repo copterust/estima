@@ -20,12 +20,16 @@ where
     DefaultAllocator: Allocator<TangentDim>,
 {
     /// Compute the weighted mean.
-    fn compute_mean(
+    fn compute_mean<'a, I>(
         &self,
-        points: &[M],
+        points: I,
         weights: &[T],
         initial_guess: InitialGuess<M>,
-    ) -> Result<M, MeanError>;
+    ) -> Result<M, MeanError>
+    where
+        M: 'a,
+        I: IntoIterator<Item = &'a M> + Clone,
+        I::IntoIter: Clone;
 }
 
 /// Iterative Fréchet mean algorithm.
@@ -54,12 +58,17 @@ where
     T: RealField + Copy,
     DefaultAllocator: Allocator<TangentDim>,
 {
-    fn compute_mean(
+    fn compute_mean<'a, I>(
         &self,
-        points: &[M],
+        points: I,
         weights: &[T],
         initial_guess: InitialGuess<M>,
-    ) -> Result<M, MeanError> {
+    ) -> Result<M, MeanError>
+    where
+        M: 'a,
+        I: IntoIterator<Item = &'a M> + Clone,
+        I::IntoIter: Clone,
+    {
         M::weighted_mean(
             points,
             weights,
@@ -86,17 +95,19 @@ where
     T: RealField + Copy,
     DefaultAllocator: Allocator<TangentDim>,
 {
-    fn compute_mean(
+    fn compute_mean<'a, I>(
         &self,
-        points: &[M],
+        points: I,
         weights: &[T],
         _initial_guess: InitialGuess<M>,
-    ) -> Result<M, MeanError> {
-        if points.is_empty() || weights.is_empty() {
+    ) -> Result<M, MeanError>
+    where
+        M: 'a,
+        I: IntoIterator<Item = &'a M> + Clone,
+        I::IntoIter: Clone,
+    {
+        if weights.is_empty() {
             return Err(MeanError::EmptyInput);
-        }
-        if points.len() != weights.len() {
-            return Err(MeanError::LengthMismatch);
         }
 
         // We assume we can just linear average in the tangent space around zero (or any point).
@@ -110,11 +121,14 @@ where
         // Mean = p0 + sum(w_i * (p_i - p0))
         // This is one step of Frechet mean, which converges instantly for Euclidean.
 
-        let base = &points[0];
+        let base = match points.clone().into_iter().next() {
+            Some(p) => p,
+            None => return Err(MeanError::EmptyInput),
+        };
         let mut delta_sum = OVector::<T, TangentDim>::zeros();
         let mut total_weight = T::zero();
 
-        for (point, &weight) in points.iter().zip(weights.iter()) {
+        for (point, &weight) in points.into_iter().zip(weights.iter()) {
             if weight > T::zero() {
                 let tangent = base.local(point);
                 delta_sum += tangent * weight;
@@ -147,33 +161,32 @@ where
     T: RealField + Copy,
     DefaultAllocator: Allocator<U3> + Allocator<U4, U4> + Allocator<U4>,
 {
-    fn compute_mean(
+    fn compute_mean<'a, I>(
         &self,
-        points: &[UnitQuaternionManifold<T>],
+        points: I,
         weights: &[T],
         _initial_guess: InitialGuess<UnitQuaternionManifold<T>>,
-    ) -> Result<UnitQuaternionManifold<T>, MeanError> {
-        if points.is_empty() || weights.is_empty() {
+    ) -> Result<UnitQuaternionManifold<T>, MeanError>
+    where
+        UnitQuaternionManifold<T>: 'a,
+        I: IntoIterator<Item = &'a UnitQuaternionManifold<T>> + Clone,
+        I::IntoIter: Clone,
+    {
+        if weights.is_empty() {
             return Err(MeanError::EmptyInput);
-        }
-        if points.len() != weights.len() {
-            return Err(MeanError::LengthMismatch);
         }
 
         let mut m = Matrix4::<T>::zeros();
         let mut total_weight = T::zero();
 
-        for (point, &weight) in points.iter().zip(weights.iter()) {
+        for (point, &weight) in points.into_iter().zip(weights.iter()) {
             if weight > T::zero() {
                 let q = &point.as_quaternion().quaternion().coords;
                 // M += w * q * q^T
-                // We can do this manually or using rank-1 update if available,
-                // but explicit loop is safe and clear.
-                for r in 0..4 {
-                    for c in 0..4 {
-                        m[(r, c)] += weight * q[r] * q[c];
-                    }
-                }
+                // Use rank-1 update if possible, or just optimized loop
+                // Since 4x4 is small, manual loop is fine but let's make it cleaner
+                // m += (q * q.transpose()) * weight;
+                m.ger(weight, q, q, T::one());
                 total_weight += weight;
             }
         }
@@ -184,7 +197,7 @@ where
 
         // Symmetric eigen decomposition
         let eigen = SymmetricEigen::new(m);
-        
+
         // Find index of largest eigenvalue
         let (max_eigen_idx, _) = eigen
             .eigenvalues
@@ -242,21 +255,27 @@ where
         + Allocator<nalgebra::Const<1>, Dim1>
         + Allocator<nalgebra::Const<1>, Dim2>,
 {
-    fn compute_mean(
+    fn compute_mean<'a, I>(
         &self,
-        points: &[CompositeManifold<T, M1, M2, Dim1, Dim2>],
+        points: I,
         weights: &[T],
         initial_guess: InitialGuess<CompositeManifold<T, M1, M2, Dim1, Dim2>>,
-    ) -> Result<CompositeManifold<T, M1, M2, Dim1, Dim2>, MeanError> {
-        if points.is_empty() {
+    ) -> Result<CompositeManifold<T, M1, M2, Dim1, Dim2>, MeanError>
+    where
+        CompositeManifold<T, M1, M2, Dim1, Dim2>: 'a,
+        I: IntoIterator<Item = &'a CompositeManifold<T, M1, M2, Dim1, Dim2>> + Clone,
+        I::IntoIter: Clone,
+    {
+        if weights.is_empty() {
             return Err(MeanError::EmptyInput);
         }
 
-        // Deconstruct points into separate vectors
-        // Note: This allocation is unfortunate but necessary without more complex iterator traits
-        // or unsafe code. For small UKF sigma points (e.g. < 20), it's negligible.
-        let first_points: alloc::vec::Vec<M1> = points.iter().map(|p| p.first.clone()).collect();
-        let second_points: alloc::vec::Vec<M2> = points.iter().map(|p| p.second.clone()).collect();
+        // Create iterators for sub-components without allocating new vectors
+        // We need to clone the iterator to pass it to both strategies
+        // The iterator yields references to CompositeManifold, we map to references to components
+        let points_clone = points.clone();
+        let first_points = points.into_iter().map(|p| &p.first);
+        let second_points = points_clone.into_iter().map(|p| &p.second);
 
         let first_guess = match &initial_guess {
             InitialGuess::First => InitialGuess::First,
@@ -273,10 +292,10 @@ where
 
         let mean_first = self
             .first
-            .compute_mean(&first_points, weights, first_guess)?;
+            .compute_mean(first_points, weights, first_guess)?;
         let mean_second = self
             .second
-            .compute_mean(&second_points, weights, second_guess)?;
+            .compute_mean(second_points, weights, second_guess)?;
 
         Ok(CompositeManifold::new(mean_first, mean_second))
     }
@@ -298,7 +317,7 @@ mod tests {
         let mean = ChordalMean
             .compute_mean(&points, &weights, InitialGuess::First)
             .unwrap();
-        
+
         let angle = mean.as_quaternion().angle_to(q1.as_quaternion());
         assert!((angle - 0.1_f64).abs() < 1e-4_f64);
     }

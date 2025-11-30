@@ -44,3 +44,7 @@ path = "examples/ahrs_ukf.rs"
 [[example]]
 name = "s2_path"
 path = "examples/s2_path.rs"
+
+[[example]]
+name = "radar_ukf"
+path = "examples/radar_ukf.rs"

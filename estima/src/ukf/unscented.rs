@@ -162,6 +162,11 @@ where
         &self.nominal_state
     }
 
+    /// Return the current set of sigma points on the manifold.
+    pub fn sigma_points(&self) -> &[Nominal] {
+        &self.nominal_sigmas
+    }
+
     /// Return the current error covariance (full matrix form).
     pub fn error_covariance(&self) -> OMatrix<T, TangentDim, TangentDim> {
         let l = self.error_covariance_sqrt.l();

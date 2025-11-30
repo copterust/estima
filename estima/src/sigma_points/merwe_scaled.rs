@@ -54,7 +54,7 @@ where
         sqrt_cov: &Cholesky<S, L>,
     ) -> SigmaPointsGenerated<S, L, <Self as SigmaPoints<L, S>>::SigmaCount> {
         let dim = L::dim();
-        let n = S::from_usize(dim).unwrap();
+        let n = S::from_usize(dim).expect("dimension must fit into scalar type");
         let lambda = self.alpha * self.alpha * (n + self.kappa) - n;
         let n_lambda = n + lambda;
         let scale = if n_lambda.abs() < S::default_epsilon() {
@@ -107,7 +107,7 @@ where
         w_covar: &mut OVector<S, Self::SigmaCount>,
     ) {
         let dim = L::dim();
-        let n = S::from_usize(dim).unwrap();
+        let n = S::from_usize(dim).expect("dimension must fit into scalar type");
         let lambda = self.alpha * self.alpha * (n + self.kappa) - n;
         let n_lambda = n + lambda;
         let scale = if n_lambda.abs() < S::default_epsilon() {
